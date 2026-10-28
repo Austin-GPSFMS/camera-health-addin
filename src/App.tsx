@@ -76,6 +76,8 @@ interface LoadedData {
   vehicles: VehicleInfo[];
   mappings: CameraMapping[];
   loadedAt: Date;
+  /** Untracked assets / serial-less devices dropped before the join. */
+  excluded: number;
 }
 
 export default function App({ api, pageState: _pageState, focusNonce }: AppProps) {
@@ -115,7 +117,7 @@ export default function App({ api, pageState: _pageState, focusNonce }: AppProps
     setNow(t);
     if (!api) {
       const demo = makeDemo(t);
-      setData({ vehicles: demo.vehicles, mappings: demo.mappings, loadedAt: t });
+      setData({ vehicles: demo.vehicles, mappings: demo.mappings, loadedAt: t, excluded: 3 });
       setSnoozes(demo.snoozes);
       setGroupsById(
         new Map([
@@ -150,7 +152,7 @@ export default function App({ api, pageState: _pageState, focusNonce }: AppProps
       for (const r of statusRaw as GeotabDeviceStatusInfo[]) if (r.device?.id) status.set(r.device.id, r);
       const groups = new Map((groupsRaw as GeotabGroup[]).map((g) => [g.id, g]));
       setGroupsById(groups);
-      const vehicles = toVehicleInfo(devices, status, groups, t);
+      const { vehicles, excluded } = toVehicleInfo(devices, status, groups, t);
 
       // AddInData → snoozes + settings (parse via the same path as fetchStore).
       try {
@@ -172,7 +174,7 @@ export default function App({ api, pageState: _pageState, focusNonce }: AppProps
       try {
         const { mappings, debug: dbg } = await fetchDeviceMappings(s);
         setDebug(dbg);
-        setData({ vehicles, mappings, loadedAt: t });
+        setData({ vehicles, mappings, loadedAt: t, excluded });
       } catch (e) {
         const msg = friendlyError(e);
         setCameraErr(msg);
@@ -433,6 +435,12 @@ export default function App({ api, pageState: _pageState, focusNonce }: AppProps
                   clear {expiredCount} expired snooze{expiredCount === 1 ? "" : "s"}
                 </button>
               </>
+            ) : null}
+            {data.excluded > 0 ? (
+              <span title="Untracked assets (no telematics device) and devices without a serial number are left out — they can never report or carry a camera pairing.">
+                {" · "}
+                {data.excluded.toLocaleString()} untracked asset{data.excluded === 1 ? "" : "s"} excluded
+              </span>
             ) : null}
             {" · "}refreshed {formatDateTime(data.loadedAt.toISOString())}
           </span>

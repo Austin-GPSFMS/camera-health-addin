@@ -205,6 +205,24 @@ check("normalizeMapping handles DeviceMappingResponse", () => {
   assert.equal(m.normalizeMapping({ partnerId: "x" }), null);
 });
 
+// 11b. Untracked assets and serial-less devices never reach the rules.
+check("untracked assets are excluded before the join", () => {
+  const devices = [
+    { id: "b1", name: "Truck 1", serialNumber: "G9AAA", deviceType: "GO9", groups: [{ id: "g1" }] },
+    { id: "b2", name: "Trailer (untracked)", serialNumber: "", deviceType: "None", groups: [{ id: "g1" }] },
+    { id: "b3", name: "Loader (untracked, zero serial)", serialNumber: "000000000000", deviceType: "None" },
+    { id: "b4", name: "No serial but typed", serialNumber: "", deviceType: "GO9" },
+    { id: "b5", name: "Custom device", serialNumber: "C1XYZ", deviceType: "CustomDevice" },
+  ];
+  assert.deepEqual(devices.map(m.isTrackableDevice), [true, false, false, false, true]);
+  const join = m.toVehicleInfo(devices, new Map(), new Map([["g1", { id: "g1", name: "Site" }]]), now);
+  assert.equal(join.excluded, 3);
+  assert.deepEqual(join.vehicles.map((v) => v.id), ["b1", "b5"]);
+  const rows = m.buildRows({ vehicles: join.vehicles, mappings: [], snoozes: [], settings: S, now });
+  assert.equal(rows.length, 2);
+  assert.ok(rows.every((r) => r.diagnosis === "no-camera"));
+});
+
 // 12. Demo data end-to-end + CSV.
 check("demo fleet builds rows with every diagnosis and CSV round-trips", () => {
   const demo = m.makeDemo(now);

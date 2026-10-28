@@ -4,3 +4,4 @@ export * from "../src/utils/csv";
 export * from "../src/utils/demo";
 export * from "../src/utils/format";
 export { normalizeMapping } from "../src/api/cameraServices";
+export { isTrackableDevice, toVehicleInfo } from "../src/api/geotab";

@@ -111,6 +111,11 @@ styling, useless for camera-services (CORS needs the MyGeotab origin).
 
 ## Notes / known limits
 
+* **Untracked assets are excluded.** Devices with `deviceType: "None"` (the
+  MyGeotab "Untracked asset" type) and any device with no serial number are
+  dropped before the join — they can never report or carry a camera pairing,
+  so each would otherwise be a permanent "No camera / GO never" row. The
+  toolbar shows how many were left out (`isTrackableDevice()` in `api/geotab.ts`).
 * `DeviceMappings` is read in one page; if a very large tenant turns out to
   paginate, the call log will show fewer mappings than expected — add paging
   in `fetchDeviceMappings()`.

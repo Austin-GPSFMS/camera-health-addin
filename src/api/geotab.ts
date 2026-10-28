@@ -172,15 +172,34 @@ export async function fetchDeviceStatus(api: GeotabApi): Promise<Map<string, Geo
   return out;
 }
 
+/**
+ * Untracked assets (MyGeotab "Untracked asset" = Device with deviceType
+ * "None" and no hardware) and any device without a serial number can never
+ * report or carry a camera pairing, so they are dropped before the join —
+ * otherwise each would be a permanent "No camera / GO never" row.
+ */
+export function isTrackableDevice(d: GeotabDevice): boolean {
+  if ((d.deviceType ?? "").toLowerCase() === "none") return false;
+  const serial = (d.serialNumber ?? "").trim();
+  return serial.length > 0 && !/^0+$/.test(serial);
+}
+
+export interface VehicleJoin {
+  vehicles: VehicleInfo[];
+  /** Devices dropped as untracked / serial-less. */
+  excluded: number;
+}
+
 /** Join Device + DeviceStatusInfo + Group names into the rules' VehicleInfo. */
 export function toVehicleInfo(
   devices: GeotabDevice[],
   status: Map<string, GeotabDeviceStatusInfo>,
   groups: Map<string, GeotabGroup>,
   now: Date
-): VehicleInfo[] {
+): VehicleJoin {
   const nowT = now.getTime();
-  return devices.map((d) => {
+  const trackable = devices.filter(isTrackableDevice);
+  const vehicles = trackable.map((d) => {
     const st = status.get(d.id);
     const activeTo = d.activeTo ? new Date(d.activeTo).getTime() : Number.POSITIVE_INFINITY;
     const groupIds = (d.groups ?? []).map((g) => g.id);
@@ -196,6 +215,7 @@ export function toVehicleInfo(
       isCommunicating: st?.isDeviceCommunicating ?? null,
     };
   });
+  return { vehicles, excluded: devices.length - trackable.length };
 }
 
 // ---------------------------------------------------------------------------
