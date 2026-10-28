@@ -29,7 +29,7 @@ const S = { ...m.DEFAULT_SETTINGS }; // 14 d view, 45 d hard limit, 24 h GO acti
 
 const vehicle = (id, serial, lastCommDays, extra = {}) => ({
   id, name: `Truck ${id}`, serialNumber: serial, groupIds: ["g1"], groupNames: ["912 - Citrus County Landfill L011"],
-  vin: "", archived: false, lastComm: lastCommDays == null ? null : iso(lastCommDays), isCommunicating: lastCommDays != null && lastCommDays < 0.5, ...extra,
+  vin: "", deviceType: "GO9", cameraCapable: true, archived: false, lastComm: lastCommDays == null ? null : iso(lastCommDays), isCommunicating: lastCommDays != null && lastCommDays < 0.5, ...extra,
 });
 const mapping = (cam, serial, lastOnlineDays, partner = "surfsight", extra = {}) => ({
   mappingId: `m-${cam}`, partnerDeviceId: cam, goSerial: serial, partnerId: partner, isOnboarded: true,
@@ -219,8 +219,41 @@ check("untracked assets are excluded before the join", () => {
   assert.equal(join.excluded, 3);
   assert.deepEqual(join.vehicles.map((v) => v.id), ["b1", "b5"]);
   const rows = m.buildRows({ vehicles: join.vehicles, mappings: [], snoozes: [], settings: S, now });
-  assert.equal(rows.length, 2);
+  // The custom device is joined (a camera mapped to it would show) but is not a "No camera paired" finding.
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].vehicleId, "b1");
   assert.ok(rows.every((r) => r.diagnosis === "no-camera"));
+});
+
+// 11c. Only GO vehicle devices are listed as "No camera paired"; third-party / GO Anywhere / GoDrive are skipped
+// unless a camera is actually mapped to them.
+check("non-GO devices are never 'No camera paired' rows", () => {
+  assert.deepEqual(
+    [
+      { deviceType: "GO9", serialNumber: "G9AAA" },
+      { deviceType: "GO9B", serialNumber: "G9BBB" },
+      { deviceType: "GO7", serialNumber: "G7CCC" },
+      { deviceType: "CustomVehicleDevice", serialNumber: "CNB82164AF45" },
+      { deviceType: "CustomDevice", serialNumber: "C1XYZ" },
+      { deviceType: "GoAnywhere", serialNumber: "GAxxx" },
+      { deviceType: "GoDriveDevice", serialNumber: "GDxxx" },
+      { deviceType: "", serialNumber: "G9DDD" },
+      { deviceType: "", serialNumber: "CNB1" },
+    ].map(m.isCameraCapableGo),
+    [true, true, true, false, false, false, false, true, false]
+  );
+  const devices = [
+    { id: "v1", name: "GO truck", serialNumber: "G9AAA", deviceType: "GO9" },
+    { id: "v2", name: "Third-party", serialNumber: "CNB82164AF45", deviceType: "CustomVehicleDevice" },
+    { id: "v3", name: "Third-party with camera", serialNumber: "CNB99999AA11", deviceType: "CustomVehicleDevice" },
+    { id: "v4", name: "GO Anywhere", serialNumber: "GAQQQ", deviceType: "GoAnywhere" },
+  ];
+  const join = m.toVehicleInfo(devices, new Map(), new Map(), now);
+  const mappings = [m.normalizeMapping({ partnerDeviceId: "cam-3", partnerId: "surfsight", associatedDeviceSerialNumber: "CNB99999AA11", deviceStatus: "online", partnerDeviceLastOnlineAt: now.toISOString() })].filter(Boolean);
+  assert.equal(mappings.length, 1, "fixture mapping should normalize");
+  const rows = m.buildRows({ vehicles: join.vehicles, mappings, snoozes: [], settings: S, now });
+  assert.deepEqual(rows.map((r) => [r.vehicleId, r.diagnosis]).sort(), [["v1", "no-camera"], ["v3", "go"]]); // v3 shows (camera mapped) — GO side has no status → "go"
+  assert.equal(m.countNonGoWithoutCamera(join.vehicles, mappings), 2);
 });
 
 // 12. Demo data end-to-end + CSV.

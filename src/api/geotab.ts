@@ -184,6 +184,20 @@ export function isTrackableDevice(d: GeotabDevice): boolean {
   return serial.length > 0 && !/^0+$/.test(serial);
 }
 
+/**
+ * Only Geotab GO vehicle devices (GO4 … GO9 / GO9B — DeviceType "GOn…")
+ * can carry a camera pairing. Third-party devices (CustomDevice /
+ * CustomVehicleDevice, serials like CNB…), GO Anywhere / Gemini asset
+ * trackers and GoDrive phones are still joined (a camera mapped to one
+ * still shows), but they never become a "No camera paired" row.
+ * A device with no deviceType falls back to the GO serial prefix ("G").
+ */
+export function isCameraCapableGo(d: Pick<GeotabDevice, "deviceType" | "serialNumber">): boolean {
+  const type = (d.deviceType ?? "").trim();
+  if (type) return /^GO\d/i.test(type);
+  return /^G/i.test((d.serialNumber ?? "").trim());
+}
+
 export interface VehicleJoin {
   vehicles: VehicleInfo[];
   /** Devices dropped as untracked / serial-less. */
@@ -210,6 +224,8 @@ export function toVehicleInfo(
       groupIds,
       groupNames: groupIds.map((id) => groups.get(id)?.name ?? "").filter(Boolean),
       vin: d.vehicleIdentificationNumber ?? "",
+      deviceType: (d.deviceType ?? "").trim(),
+      cameraCapable: isCameraCapableGo(d),
       archived: Number.isFinite(activeTo) && activeTo < nowT,
       lastComm: st?.dateTime ?? null,
       isCommunicating: st?.isDeviceCommunicating ?? null,

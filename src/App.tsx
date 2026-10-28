@@ -25,6 +25,7 @@ import {
   buildRows,
   clampSettings,
   compareRows,
+  countNonGoWithoutCamera,
   countRows,
   expandGroupIds,
   matchesGroups,
@@ -207,6 +208,8 @@ export default function App({ api, pageState: _pageState, focusNonce }: AppProps
     () => (data ? buildRows({ vehicles: data.vehicles, mappings: data.mappings, snoozes, settings, now }) : []),
     [data, snoozes, settings, now]
   );
+
+  const nonGoSkipped = useMemo(() => (data ? countNonGoWithoutCamera(data.vehicles, data.mappings) : 0), [data]);
 
   const expandedGroups = useMemo(() => (groupIds.length ? expandGroupIds(groupIds, groupsById) : null), [groupIds, groupsById]);
 
@@ -440,6 +443,12 @@ export default function App({ api, pageState: _pageState, focusNonce }: AppProps
               <span title="Untracked assets (no telematics device) and devices without a serial number are left out — they can never report or carry a camera pairing.">
                 {" · "}
                 {data.excluded.toLocaleString()} untracked asset{data.excluded === 1 ? "" : "s"} excluded
+              </span>
+            ) : null}
+            {nonGoSkipped > 0 ? (
+              <span title="Third-party devices (CustomDevice / CustomVehicleDevice), GO Anywhere and GoDrive units can't carry a camera, so they are not listed as 'No camera paired'. They still appear if a camera is mapped to them.">
+                {" · "}
+                {nonGoSkipped.toLocaleString()} non-GO device{nonGoSkipped === 1 ? "" : "s"} without a camera not listed
               </span>
             ) : null}
             {" · "}refreshed {formatDateTime(data.loadedAt.toISOString())}

@@ -246,9 +246,10 @@ export function buildRows({ vehicles, mappings, snoozes, settings, now }: BuildI
     }
   }
 
-  // 2. Active vehicles with no camera pairing.
+  // 2. Active GO vehicles with no camera pairing. Third-party / GO Anywhere /
+  //    GoDrive units can't take a camera, so a missing pairing isn't a finding.
   for (const v of vehicles) {
-    if (v.archived || pairedVehicleIds.has(v.id)) continue;
+    if (v.archived || pairedVehicleIds.has(v.id) || !v.cameraCapable) continue;
     push({
       key: vehicleKey(v.id),
       vehicleId: v.id,
@@ -271,6 +272,12 @@ export function buildRows({ vehicles, mappings, snoozes, settings, now }: BuildI
   }
 
   return rows;
+}
+
+/** Active devices that can't carry a camera and have no pairing — skipped by buildRows (for the footer count). */
+export function countNonGoWithoutCamera(vehicles: VehicleInfo[], mappings: CameraMapping[]): number {
+  const paired = new Set(mappings.map((m) => m.goSerial.trim().toUpperCase()).filter(Boolean));
+  return vehicles.filter((v) => !v.archived && !v.cameraCapable && !paired.has(v.serialNumber.trim().toUpperCase())).length;
 }
 
 // ---------------------------------------------------------------------------

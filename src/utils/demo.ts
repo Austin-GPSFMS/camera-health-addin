@@ -57,6 +57,8 @@ export function makeDemo(now: Date): DemoData {
       groupNames: [site, "Waste Pro"],
       vin: `1FDUF5HT${(10000000 + i).toString()}`.slice(0, 17),
       archived: false,
+      deviceType: "GO9",
+      cameraCapable: true,
       lastComm: goDays == null ? null : Number.isFinite(goDays) ? iso(now, goDays) : null,
       isCommunicating: goDays != null && goDays < 0.5,
     };
@@ -118,6 +120,8 @@ export function makeDemo(now: Date): DemoData {
     groupNames: [SITES[0], "Waste Pro"],
     vin: "",
     archived: true,
+    deviceType: "GO9",
+    cameraCapable: true,
     lastComm: iso(now, 120),
     isCommunicating: false,
   });

@@ -110,6 +110,10 @@ export interface VehicleInfo {
   groupIds: string[];
   groupNames: string[];
   vin: string;
+  /** MyGeotab DeviceType (GO9, CustomDevice, GoAnywhere, ...). */
+  deviceType: string;
+  /** Geotab GO vehicle device (GO4–GO9/GO9B) — the only hardware a camera pairs to. */
+  cameraCapable: boolean;
   /** activeTo is in the past (archived / historical device). */
   archived: boolean;
   /** GO's last communication (DeviceStatusInfo.dateTime), or null if unknown. */
