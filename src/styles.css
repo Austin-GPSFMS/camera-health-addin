@@ -100,6 +100,20 @@ html, body, #root { margin: 0; padding: 0; height: 100%; }
 .vch-ud-table th, .vch-ud-table td { white-space: normal; }
 .vch-ud-table .vch-actions { white-space: nowrap; }
 
+.vch-typeahead { display: flex; flex-direction: column; gap: 4px; }
+.vch-typeahead-anchor { position: relative; display: flex; }
+.vch-typeahead .vch-input { max-width: none; flex: 1; }
+.vch-typeahead-list {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 20; margin: 2px 0 0; padding: 4px 0; list-style: none;
+  background: #fff; border: 1px solid #d1d5db; border-radius: 6px; box-shadow: 0 6px 20px rgba(28, 43, 57, 0.15);
+  max-height: 320px; overflow-y: auto;
+}
+.vch-typeahead-item { display: flex; flex-direction: column; gap: 1px; padding: 6px 10px; cursor: pointer; font-size: 13px; }
+.vch-typeahead-item--active { background: var(--gpsfms-blue-soft); }
+.vch-typeahead-name { font-weight: 600; color: var(--gpsfms-dark); }
+.vch-typeahead-email { font-size: 12px; color: #6b7280; display: flex; align-items: center; gap: 6px; }
+.vch-field-hint--ok { color: #166534; }
+
 .vch-default-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 6px 3px 10px; font-weight: 500; white-space: normal; }
 .vch-chip-x { border: 0; background: transparent; color: inherit; font: inherit; font-size: 14px; line-height: 1; cursor: pointer; padding: 0 2px; border-radius: 50%; }
 .vch-chip-x:hover { background: rgba(37, 71, 123, 0.12); }

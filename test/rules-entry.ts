@@ -6,3 +6,4 @@ export * from "../src/utils/format";
 export { normalizeMapping } from "../src/api/cameraServices";
 export { isCameraCapableGo, isTrackableDevice, toVehicleInfo, parseStoreRows } from "../src/api/geotab";
 export * from "../src/utils/defaults";
+export { matchUsers } from "../src/components/UserPicker";

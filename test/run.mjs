@@ -296,6 +296,21 @@ check("parseStoreRows: snooze + settings + userDefault", () => {
   assert.equal(store.userDefaults[0].partner, undefined);
 });
 
+// 11e. User typeahead matches on email, first and last name; multi-term; prefix ranks first.
+check("matchUsers: substring on email/name, multi-term, ranked", () => {
+  const users = [
+    { id: "1", name: "travis.tucker@example.com", firstName: "Travis", lastName: "Tucker" },
+    { id: "2", name: "ktuck@example.com", firstName: "Kim", lastName: "Stuckey" },
+    { id: "3", name: "site.lead@example.com", firstName: "Site", lastName: "Lead", isDriver: true },
+  ];
+  assert.deepEqual(m.matchUsers(users, "tuck").map((u) => u.id), ["1", "2"]); // last-name prefix "Tucker" ranks above mid-string "ktuck"
+  assert.deepEqual(m.matchUsers(users, "TRAVIS").map((u) => u.id), ["1"]);
+  assert.deepEqual(m.matchUsers(users, "travis tucker").map((u) => u.id), ["1"]);
+  assert.deepEqual(m.matchUsers(users, "lead").map((u) => u.id), ["3"]);
+  assert.deepEqual(m.matchUsers(users, "zzz"), []);
+  assert.equal(m.matchUsers(users, "").length, 3);
+});
+
 // 12. Demo data end-to-end + CSV.
 check("demo fleet builds rows with every diagnosis and CSV round-trips", () => {
   const demo = m.makeDemo(now);

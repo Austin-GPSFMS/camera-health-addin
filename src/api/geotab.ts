@@ -318,7 +318,10 @@ export async function addUserDefault(api: GeotabApi, rec: UserDefaultRecord): Pr
   return apiCall<string>(api, "Add", { typeName: "AddInData", entity });
 }
 
-/** Non-driver users for the Settings → User defaults picker. */
+/**
+ * Users for the Settings → User defaults picker. Drivers are kept (a site
+ * lead is often flagged as a driver too) but sorted after plain users.
+ */
 export async function fetchUsers(api: GeotabApi): Promise<GeotabUser[]> {
   let users: GeotabUser[];
   try {
@@ -330,7 +333,9 @@ export async function fetchUsers(api: GeotabApi): Promise<GeotabUser[]> {
   } catch {
     users = await apiCall<GeotabUser[]>(api, "Get", { typeName: "User", resultsLimit: 10000 });
   }
-  return users.filter((u) => u.name && !u.isDriver).sort((a, b) => a.name.localeCompare(b.name));
+  return users
+    .filter((u) => typeof u.name === "string" && u.name.trim())
+    .sort((a, b) => Number(!!a.isDriver) - Number(!!b.isDriver) || a.name.localeCompare(b.name));
 }
 
 /** MyGeotab's header group filter, whatever shape this build returns it in (sync or callback). */

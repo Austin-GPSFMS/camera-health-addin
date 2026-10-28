@@ -8,6 +8,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@geotab/zenith";
 import type { GeotabGroup, GeotabUser, UserDefaultRecord } from "../types";
 import { GroupFilterPicker } from "./GroupFilterPicker";
+import { UserPicker } from "./UserPicker";
 import { DIAGNOSIS_LABEL, partnerLabel } from "../utils/health";
 import { formatDate } from "../utils/format";
 import { normalizeUserName } from "../utils/defaults";
@@ -81,25 +82,13 @@ export function UserDefaults({ groupsById, users, usersError, partners, defaults
           <label className="vch-field-label" htmlFor="vch-ud-username">
             User
           </label>
-          <input
-            id="vch-ud-username"
-            className="vch-input"
-            list="vch-ud-users"
-            value={userName}
-            placeholder={users ? "Start typing a name or email…" : usersError ? "Type the user's email" : "Loading users…"}
-            onChange={(e) => setUserName(e.target.value)}
-            autoComplete="off"
-          />
-          <datalist id="vch-ud-users">
-            {(users ?? []).map((x) => (
-              <option key={x.id} value={x.name}>
-                {[x.firstName, x.lastName].filter(Boolean).join(" ")}
-              </option>
-            ))}
-          </datalist>
-          <span className="vch-field-hint">
-            {known ? `${[known.firstName, known.lastName].filter(Boolean).join(" ") || known.name}${existing ? " — already has a default; saving replaces it" : ""}` : usersError ? `Could not list users (${usersError}) — enter the MyGeotab user name exactly.` : "MyGeotab user name (email)."}
-          </span>
+          <UserPicker id="vch-ud-username" value={userName} users={users} usersError={usersError} onChange={setUserName} />
+          {known ? (
+            <span className="vch-field-hint vch-field-hint--ok">
+              ✓ {[known.firstName, known.lastName].filter(Boolean).join(" ") || known.name}
+              {existing ? " — already has a default; saving replaces it" : ""}
+            </span>
+          ) : null}
         </div>
         <div className="vch-field vch-ud-groups">
           <span className="vch-field-label">Open to group(s)</span>
