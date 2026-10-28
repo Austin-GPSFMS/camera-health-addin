@@ -38,7 +38,8 @@ export interface GeotabSession {
 }
 
 export interface GeotabPageState {
-  getGroupFilter?: (cb: (groups: unknown) => void) => void;
+  /** MyGeotab's header group filter. Documented as synchronous; some builds take a callback — both handled. */
+  getGroupFilter?: (cb?: (groups: unknown) => void) => unknown;
   setGroupFilter?: (groups: unknown) => void;
   getState?: (cb: (state: unknown) => void) => void;
   setState?: (state: unknown) => void;
@@ -160,6 +161,33 @@ export interface SettingsRecord extends Settings {
   kind: "settings";
   by: string;
   at: string;
+}
+
+/**
+ * Admin-assigned default view for one user: which groups (and optionally
+ * which partner chip / starting tile) the dashboard opens to for them.
+ */
+export interface UserDefaultRecord {
+  id?: string;
+  kind: "userDefault";
+  /** MyGeotab user name (email), stored lower-cased. */
+  userName: string;
+  groupIds: string[];
+  /** "all" | partner id | "none"; undefined = leave as-is. */
+  partner?: string;
+  /** Starting tile; undefined = Issues. */
+  view?: string;
+  by: string;
+  at: string;
+}
+
+export interface GeotabUser {
+  id: string;
+  name: string;
+  firstName?: string;
+  lastName?: string;
+  isDriver?: boolean;
+  companyGroups?: Array<{ id: string }>;
 }
 
 // ---------------------------------------------------------------------------

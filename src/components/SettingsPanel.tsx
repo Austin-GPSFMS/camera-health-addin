@@ -1,6 +1,6 @@
 /** Settings — shared per database (AddInData). Threshold, hard limit, GO-active window, no-camera policy. */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "@geotab/zenith";
 import type { Settings } from "../types";
 import { DEFAULT_SETTINGS, clampSettings } from "../utils/health";
@@ -12,9 +12,11 @@ interface Props {
   shared: boolean;
   onSave: (s: Settings) => void;
   onClose: () => void;
+  /** Rendered below the threshold settings (the User defaults section). */
+  children?: ReactNode;
 }
 
-export function SettingsPanel({ settings, savedBy, busy, shared, onSave, onClose }: Props) {
+export function SettingsPanel({ settings, savedBy, busy, shared, onSave, onClose, children }: Props) {
   const [draft, setDraft] = useState<Settings>(settings);
   useEffect(() => setDraft(settings), [settings]);
 
@@ -76,6 +78,8 @@ export function SettingsPanel({ settings, savedBy, busy, shared, onSave, onClose
           {busy ? "Saving…" : "Save"}
         </Button>
       </div>
+      {children ? <div className="vch-settings-divider" /> : null}
+      {children}
     </div>
   );
 }

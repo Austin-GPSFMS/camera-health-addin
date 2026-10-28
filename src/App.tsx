@@ -15,9 +15,24 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Banner, Button, SearchInput } from "@geotab/zenith";
-import type { GeotabApi, GeotabGroup, GeotabPageState, GeotabSession, HealthRow, Settings, SettingsRecord, SnoozeRecord, CameraMapping, VehicleInfo } from "./types";
-import { addSnooze, apiMultiCall, fetchSession, parseStoreRows, friendlyError, removeAddInData, saveSettings as saveSettingsRemote, toVehicleInfo, ADDIN_DATA_ID } from "./api/geotab";
+import type { GeotabApi, GeotabGroup, GeotabPageState, GeotabSession, GeotabUser, HealthRow, Settings, SettingsRecord, SnoozeRecord, CameraMapping, UserDefaultRecord, VehicleInfo } from "./types";
+import {
+  ADDIN_DATA_ID,
+  addSnooze,
+  addUserDefault,
+  apiMultiCall,
+  fetchSession,
+  fetchUsers,
+  friendlyError,
+  parseStoreRows,
+  readPageGroupFilter,
+  removeAddInData,
+  saveSettings as saveSettingsRemote,
+  toVehicleInfo,
+} from "./api/geotab";
 import type { GeotabAddInData, GeotabDevice, GeotabDeviceStatusInfo } from "./types";
+import { resolveInitialFilter, type InitialFilter } from "./utils/defaults";
+import { UserDefaults } from "./components/UserDefaults";
 import { fetchDeviceMappings, type CameraServicesDebug } from "./api/cameraServices";
 import {
   DEFAULT_SETTINGS,
@@ -81,13 +96,20 @@ interface LoadedData {
   excluded: number;
 }
 
-export default function App({ api, pageState: _pageState, focusNonce }: AppProps) {
+export default function App({ api, pageState, focusNonce }: AppProps) {
   const insideMyGeotab = api != null;
 
   const [session, setSession] = useState<GeotabSession | null>(null);
   const [groupsById, setGroupsById] = useState<Map<string, GeotabGroup>>(() => new Map());
   const [data, setData] = useState<LoadedData | null>(null);
   const [snoozes, setSnoozes] = useState<SnoozeRecord[]>([]);
+  const [userDefaults, setUserDefaults] = useState<UserDefaultRecord[]>([]);
+  const [users, setUsers] = useState<GeotabUser[] | null>(null);
+  const [usersError, setUsersError] = useState<string | null>(null);
+  const [initial, setInitial] = useState<InitialFilter | null>(null);
+  /** Remount key + seed for the header group picker when a default is applied. */
+  const [pickerKey, setPickerKey] = useState(0);
+  const pickerSeed = useRef<string[]>([]);
   const [settings, setSettings] = useState<Settings>(() => loadLocalSettings());
   const [settingsRec, setSettingsRec] = useState<SettingsRecord | null>(null);
   const [storeShared, setStoreShared] = useState(true);
@@ -113,22 +135,36 @@ export default function App({ api, pageState: _pageState, focusNonce }: AppProps
 
   // ---- Load -----------------------------------------------------------------
 
+  /** Apply a resolved default: seed + remount the picker, set chip/tile, remember the source for the toolbar note. */
+  const applyInitial = useCallback((f: InitialFilter) => {
+    pickerSeed.current = f.groupIds;
+    setGroupIds(f.groupIds);
+    setPickerKey((k) => k + 1);
+    if (f.partner) setPartner(f.partner);
+    if (f.view) setView(f.view as ViewFilter);
+    setInitial(f);
+  }, []);
+
   const load = useCallback(async () => {
     const t = new Date();
     setNow(t);
     if (!api) {
       const demo = makeDemo(t);
+      const groups = new Map<string, GeotabGroup>([
+        ["GroupCompanyId", { id: "GroupCompanyId", name: "Company", children: [{ id: "g0" }, { id: "g1" }, { id: "g2" }] }],
+        ["g0", { id: "g0", name: "912 - Citrus County Landfill L011" }],
+        ["g1", { id: "g1", name: "915 - Ocala Hauling H004" }],
+        ["g2", { id: "g2", name: "921 - Jacksonville Hauling H012" }],
+      ]);
+      setGroupsById(groups);
       setData({ vehicles: demo.vehicles, mappings: demo.mappings, loadedAt: t, excluded: 3 });
       setSnoozes(demo.snoozes);
-      setGroupsById(
-        new Map([
-          ["GroupCompanyId", { id: "GroupCompanyId", name: "Company", children: [{ id: "g0" }, { id: "g1" }, { id: "g2" }] }],
-          ["g0", { id: "g0", name: "912 - Citrus County Landfill L011" }],
-          ["g1", { id: "g1", name: "915 - Ocala Hauling H004" }],
-          ["g2", { id: "g2", name: "921 - Jacksonville Hauling H012" }],
-        ])
-      );
+      setUserDefaults(demo.userDefaults);
+      setUsers(demo.users);
       setStoreShared(false);
+      // Standalone preview: ?demoUser=<email> opens as that user so a saved default can be eyeballed.
+      const demoUser = new URLSearchParams(window.location.search).get("demoUser") ?? "demo";
+      applyInitial(resolveInitialFilter(demo.userDefaults, demoUser, null, new Set(groups.keys())));
       return;
     }
     setLoading(true);
@@ -155,10 +191,13 @@ export default function App({ api, pageState: _pageState, focusNonce }: AppProps
       setGroupsById(groups);
       const { vehicles, excluded } = toVehicleInfo(devices, status, groups, t);
 
-      // AddInData → snoozes + settings (parse via the same path as fetchStore).
+      // AddInData → snoozes + settings + per-user defaults.
+      let defaults: UserDefaultRecord[] = [];
       try {
         const store = parseStoreRows(storeRaw as GeotabAddInData[]);
         setSnoozes(store.snoozes);
+        setUserDefaults(store.userDefaults);
+        defaults = store.userDefaults;
         setStoreShared(true);
         if (store.settings) {
           setSettingsRec(store.settings);
@@ -169,6 +208,13 @@ export default function App({ api, pageState: _pageState, focusNonce }: AppProps
       } catch (e) {
         setStoreShared(false);
         setStoreErr(`Shared snoozes/settings unavailable (${friendlyError(e)}) — using this browser's settings; snoozing is disabled.`);
+      }
+
+      // Default view: admin-assigned for this user → MyGeotab header group filter → company.
+      // Only on the first load; a Refresh keeps whatever the user has picked since.
+      if (!initial) {
+        const pageFilter = await readPageGroupFilter(pageState);
+        applyInitial(resolveInitialFilter(defaults, s.userName, pageFilter, new Set(groups.keys())));
       }
 
       // Camera side — camera-services.
@@ -188,7 +234,19 @@ export default function App({ api, pageState: _pageState, focusNonce }: AppProps
     } finally {
       setLoading(false);
     }
-  }, [api, session]);
+  }, [api, session, pageState, initial, applyInitial]);
+
+  // Users list for Settings → User defaults, fetched the first time Settings opens.
+  useEffect(() => {
+    if (!showSettings || !api || users !== null || usersError) return;
+    let cancelled = false;
+    fetchUsers(api)
+      .then((u) => !cancelled && setUsers(u))
+      .catch((e) => !cancelled && setUsersError(friendlyError(e)));
+    return () => {
+      cancelled = true;
+    };
+  }, [showSettings, api, users, usersError]);
 
   useEffect(() => {
     if (lastNonce.current === focusNonce) return;
@@ -332,6 +390,51 @@ export default function App({ api, pageState: _pageState, focusNonce }: AppProps
     [api, session, settingsRec, storeShared]
   );
 
+  const saveUserDefault = useCallback(
+    async (d: Omit<UserDefaultRecord, "id" | "kind" | "by" | "at">) => {
+      const rec: UserDefaultRecord = { ...d, kind: "userDefault", by: session?.userName ?? "demo", at: new Date().toISOString() };
+      setSaving(true);
+      setActionErr(null);
+      try {
+        const old = userDefaults.filter((x) => x.userName === d.userName && x.id);
+        if (api) {
+          rec.id = await addUserDefault(api, rec);
+          for (const o of old) {
+            try {
+              await removeAddInData(api, o.id!);
+            } catch {
+              /* newest wins on read anyway */
+            }
+          }
+        } else {
+          rec.id = `demo-ud-${Date.now()}`;
+        }
+        setUserDefaults((prev) => [...prev.filter((x) => x.userName !== d.userName), rec]);
+      } catch (e) {
+        setActionErr(`Could not save the user default: ${friendlyError(e)}`);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [api, session, userDefaults]
+  );
+
+  const removeUserDefault = useCallback(
+    async (d: UserDefaultRecord) => {
+      setSaving(true);
+      setActionErr(null);
+      try {
+        if (api && d.id) await removeAddInData(api, d.id);
+        setUserDefaults((prev) => prev.filter((x) => x.userName !== d.userName));
+      } catch (e) {
+        setActionErr(`Could not remove the user default: ${friendlyError(e)}`);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [api]
+  );
+
   const exportCsv = useCallback(() => {
     const stamp = new Date().toISOString().slice(0, 10);
     downloadCsv(`vehicle-camera-health_${session?.database ?? "demo"}_${view}_${stamp}.csv`, rowsToCsv(visibleRows));
@@ -363,7 +466,7 @@ export default function App({ api, pageState: _pageState, focusNonce }: AppProps
         <div className="vch-actions">
           {groupsById.size > 0 ? (
             <div className="vch-groups-picker">
-              <GroupFilterPicker groupsById={groupsById} onChange={setGroupIds} />
+              <GroupFilterPicker key={pickerKey} groupsById={groupsById} initialGroupIds={pickerSeed.current.length ? pickerSeed.current : undefined} onChange={setGroupIds} />
             </div>
           ) : null}
           <Button type="secondary" onClick={() => setShowSettings((v) => !v)} disabled={loading}>
@@ -399,7 +502,21 @@ export default function App({ api, pageState: _pageState, focusNonce }: AppProps
       </div>
 
       {showSettings ? (
-        <SettingsPanel settings={settings} savedBy={settingsRec?.by || null} busy={saving} shared={storeShared} onSave={onSaveSettings} onClose={() => setShowSettings(false)} />
+        <SettingsPanel settings={settings} savedBy={settingsRec?.by || null} busy={saving} shared={storeShared} onSave={onSaveSettings} onClose={() => setShowSettings(false)}>
+          <ErrorBoundary label="user defaults">
+            <UserDefaults
+              groupsById={groupsById}
+              users={users}
+              usersError={usersError}
+              partners={partners}
+              defaults={userDefaults}
+              busy={saving}
+              canWrite={!api || storeShared}
+              onSave={(d) => void saveUserDefault(d)}
+              onRemove={(d) => void removeUserDefault(d)}
+            />
+          </ErrorBoundary>
+        </SettingsPanel>
       ) : null}
 
       {data ? (
@@ -428,6 +545,27 @@ export default function App({ api, pageState: _pageState, focusNonce }: AppProps
           <div className="vch-search">
             <SearchInput value={search} onChange={setSearch} placeholder="Vehicle, serial, camera id, group, error…" ariaLabel="Search rows" />
           </div>
+          {initial && initial.source !== "company" && groupIds.length > 0 ? (
+            <span
+              className="vch-pill vch-pill-info vch-default-chip"
+              title={initial.source === "user-default" ? "An admin set this as your default view in Settings → User defaults." : "Taken from your MyGeotab group filter."}
+            >
+              {initial.source === "user-default" ? "Your default view" : "MyGeotab group filter"}: {groupIds.map((g) => groupsById.get(g)?.name ?? g).join(", ")}
+              <button
+                type="button"
+                className="vch-chip-x"
+                aria-label="Show the whole company"
+                title="Show the whole company"
+                onClick={() => {
+                  pickerSeed.current = [];
+                  setGroupIds([]);
+                  setPickerKey((k) => k + 1);
+                }}
+              >
+                ×
+              </button>
+            </span>
+          ) : null}
           <span className="vch-spacer" />
           <span className="vch-muted">
             {visibleRows.length.toLocaleString()} of {scopedRows.length.toLocaleString()} rows

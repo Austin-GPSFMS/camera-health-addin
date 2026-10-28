@@ -256,6 +256,46 @@ check("non-GO devices are never 'No camera paired' rows", () => {
   assert.equal(m.countNonGoWithoutCamera(join.vehicles, mappings), 2);
 });
 
+// 11c. Per-user default view: admin record wins, then MyGeotab's filter, then company.
+check("default view resolution: user default → page filter → company", () => {
+  const known = new Set(["GroupCompanyId", "g-idaho", "g-utah"]);
+  const defaults = [
+    { kind: "userDefault", userName: "travis.tucker@x.com", groupIds: ["g-idaho"], partner: "surfsight", by: "austin", at: iso(5) },
+    { kind: "userDefault", userName: "Travis.Tucker@x.com", groupIds: ["g-utah"], by: "austin", at: iso(1) }, // newer, different case
+    { kind: "userDefault", userName: "stale@x.com", groupIds: ["g-gone"], by: "austin", at: iso(1) }, // group no longer exists
+  ];
+  const t = m.resolveInitialFilter(defaults, "TRAVIS.TUCKER@x.com", [{ id: "g-utah" }], known);
+  assert.equal(t.source, "user-default");
+  assert.deepEqual(t.groupIds, ["g-utah"]); // newest record wins, case-insensitive
+  assert.equal(t.partner, null);
+  const p = m.resolveInitialFilter(defaults, "someone@x.com", { groups: [{ id: "g-idaho" }] }, known);
+  assert.equal(p.source, "mygeotab-filter");
+  assert.deepEqual(p.groupIds, ["g-idaho"]);
+  const c = m.resolveInitialFilter(defaults, "someone@x.com", [{ id: "GroupCompanyId" }], known);
+  assert.equal(c.source, "company");
+  assert.deepEqual(c.groupIds, []);
+  // A default pointing only at a deleted group falls through rather than filtering to nothing.
+  const s = m.resolveInitialFilter(defaults, "stale@x.com", null, known);
+  assert.equal(s.source, "company");
+  assert.deepEqual(m.groupIdsFromPageFilter(["g1", { id: "g2" }, { items: [{ id: "g3" }] }]), ["g1", "g2", "g3"]);
+});
+
+// 11d. AddInData parsing picks up all three record kinds.
+check("parseStoreRows: snooze + settings + userDefault", () => {
+  const store = m.parseStoreRows([
+    { id: "a1", addInId: "x", details: { kind: "snooze", key: "go:b1", until: iso(-5), reason: "spare" } },
+    { id: "a2", addInId: "x", details: JSON.stringify({ kind: "settings", viewThresholdDays: 7, hardLimitDays: 30, at: iso(1) }) },
+    { id: "a3", addInId: "x", details: { kind: "userDefault", userName: "Travis@X.com", groupIds: ["g1"], view: "camera", at: iso(1) } },
+    { id: "a4", addInId: "x", details: { kind: "junk" } },
+  ]);
+  assert.equal(store.snoozes.length, 1);
+  assert.equal(store.settings.viewThresholdDays, 7);
+  assert.equal(store.userDefaults.length, 1);
+  assert.equal(store.userDefaults[0].userName, "travis@x.com");
+  assert.equal(store.userDefaults[0].view, "camera");
+  assert.equal(store.userDefaults[0].partner, undefined);
+});
+
 // 12. Demo data end-to-end + CSV.
 check("demo fleet builds rows with every diagnosis and CSV round-trips", () => {
   const demo = m.makeDemo(now);

@@ -14,10 +14,13 @@ import type {
   GeotabDevice,
   GeotabDeviceStatusInfo,
   GeotabGroup,
+  GeotabPageState,
   GeotabSession,
+  GeotabUser,
   Settings,
   SettingsRecord,
   SnoozeRecord,
+  UserDefaultRecord,
   VehicleInfo,
 } from "../types";
 import { clampSettings } from "../utils/health";
@@ -242,6 +245,7 @@ export function toVehicleInfo(
 export interface StoreContents {
   snoozes: SnoozeRecord[];
   settings: SettingsRecord | null;
+  userDefaults: UserDefaultRecord[];
 }
 
 function parseDetails(r: GeotabAddInData): Record<string, unknown> | null {
@@ -265,6 +269,7 @@ export async function fetchStore(api: GeotabApi): Promise<StoreContents> {
 /** Turn raw AddInData rows (from Get or a multiCall) into snoozes + the newest settings record. */
 export function parseStoreRows(rows: GeotabAddInData[]): StoreContents {
   const snoozes: SnoozeRecord[] = [];
+  const userDefaults: UserDefaultRecord[] = [];
   let settings: SettingsRecord | null = null;
   for (const r of rows) {
     const d = parseDetails(r);
@@ -291,9 +296,64 @@ export function parseStoreRows(rows: GeotabAddInData[]): StoreContents {
       };
       // Keep the newest if several exist.
       if (!settings || rec.at > settings.at) settings = rec;
+    } else if (d.kind === "userDefault" && typeof d.userName === "string") {
+      userDefaults.push({
+        id: r.id,
+        kind: "userDefault",
+        userName: d.userName.trim().toLowerCase(),
+        groupIds: Array.isArray(d.groupIds) ? d.groupIds.map(String) : [],
+        partner: typeof d.partner === "string" && d.partner ? d.partner : undefined,
+        view: typeof d.view === "string" && d.view ? d.view : undefined,
+        by: typeof d.by === "string" ? d.by : "",
+        at: typeof d.at === "string" ? d.at : "",
+      });
     }
   }
-  return { snoozes, settings };
+  return { snoozes, settings, userDefaults };
+}
+
+export async function addUserDefault(api: GeotabApi, rec: UserDefaultRecord): Promise<string> {
+  const { id: _id, ...details } = rec;
+  const entity: GeotabAddInData = { addInId: ADDIN_DATA_ID, details, groups: [{ id: "GroupCompanyId" }] };
+  return apiCall<string>(api, "Add", { typeName: "AddInData", entity });
+}
+
+/** Non-driver users for the Settings → User defaults picker. */
+export async function fetchUsers(api: GeotabApi): Promise<GeotabUser[]> {
+  let users: GeotabUser[];
+  try {
+    users = await apiCall<GeotabUser[]>(api, "Get", {
+      typeName: "User",
+      resultsLimit: 10000,
+      propertySelector: { fields: ["id", "name", "firstName", "lastName", "isDriver", "companyGroups"], isIncluded: true },
+    });
+  } catch {
+    users = await apiCall<GeotabUser[]>(api, "Get", { typeName: "User", resultsLimit: 10000 });
+  }
+  return users.filter((u) => u.name && !u.isDriver).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** MyGeotab's header group filter, whatever shape this build returns it in (sync or callback). */
+export function readPageGroupFilter(state: GeotabPageState | null): Promise<unknown> {
+  return new Promise((resolve) => {
+    if (!state || typeof state.getGroupFilter !== "function") {
+      resolve(null);
+      return;
+    }
+    let settled = false;
+    const done = (v: unknown) => {
+      if (settled) return;
+      settled = true;
+      resolve(v);
+    };
+    setTimeout(() => done(null), 1500);
+    try {
+      const sync = state.getGroupFilter((v: unknown) => done(v));
+      if (sync !== undefined) done(sync);
+    } catch {
+      done(null);
+    }
+  });
 }
 
 export async function addSnooze(api: GeotabApi, rec: SnoozeRecord): Promise<string> {

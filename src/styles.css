@@ -86,6 +86,24 @@ html, body, #root { margin: 0; padding: 0; height: 100%; }
 .vch-input-sm { width: 80px; }
 .vch-toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--gpsfms-dark); cursor: pointer; }
 
+.vch-settings-divider { border-top: 1px solid #e5e7eb; margin: 4px 0; }
+
+/* ---- User defaults ---- */
+.vch-userdefaults { display: flex; flex-direction: column; gap: 12px; }
+.vch-ud-form {
+  display: grid; grid-template-columns: minmax(240px, 1.2fr) minmax(260px, 1.4fr) minmax(150px, 0.7fr) minmax(170px, 0.8fr) auto;
+  gap: 12px 16px; align-items: start;
+  background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px 14px;
+}
+@media (max-width: 1100px) { .vch-ud-form { grid-template-columns: 1fr 1fr; } }
+.vch-ud-actions { display: flex; gap: 8px; align-self: end; justify-content: flex-end; grid-column: -2 / -1; }
+.vch-ud-table th, .vch-ud-table td { white-space: normal; }
+.vch-ud-table .vch-actions { white-space: nowrap; }
+
+.vch-default-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 6px 3px 10px; font-weight: 500; white-space: normal; }
+.vch-chip-x { border: 0; background: transparent; color: inherit; font: inherit; font-size: 14px; line-height: 1; cursor: pointer; padding: 0 2px; border-radius: 50%; }
+.vch-chip-x:hover { background: rgba(37, 71, 123, 0.12); }
+
 /* ---- Dialog ---- */
 .vch-dialog { display: flex; flex-direction: column; gap: 14px; }
 .vch-dialog p { margin: 0; }

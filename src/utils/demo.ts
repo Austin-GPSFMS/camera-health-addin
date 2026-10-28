@@ -4,7 +4,7 @@
  * screenshots and assertions are stable.
  */
 
-import type { CameraMapping, SnoozeRecord, VehicleInfo } from "../types";
+import type { CameraMapping, GeotabUser, SnoozeRecord, UserDefaultRecord, VehicleInfo } from "../types";
 import { snoozeUntil, vehicleKey, cameraKey } from "./health";
 
 const SITES = ["912 - Citrus County Landfill L011", "915 - Ocala Hauling H004", "921 - Jacksonville Hauling H012"];
@@ -18,12 +18,23 @@ export interface DemoData {
   vehicles: VehicleInfo[];
   mappings: CameraMapping[];
   snoozes: SnoozeRecord[];
+  userDefaults: UserDefaultRecord[];
+  users: GeotabUser[];
 }
 
 export function makeDemo(now: Date): DemoData {
   const vehicles: VehicleInfo[] = [];
   const mappings: CameraMapping[] = [];
   const snoozes: SnoozeRecord[] = [];
+  const users: GeotabUser[] = [
+    { id: "u1", name: "demo@gpsfms.com", firstName: "Demo", lastName: "User" },
+    { id: "u2", name: "travis.tucker@example.com", firstName: "Travis", lastName: "Tucker" },
+    { id: "u3", name: "site.lead@example.com", firstName: "Site", lastName: "Lead" },
+  ];
+  // Admin-assigned default for Travis (not the demo user, so the preview still shows the whole company).
+  const userDefaults: UserDefaultRecord[] = [
+    { id: "ud1", kind: "userDefault", userName: "travis.tucker@example.com", groupIds: ["g2"], partner: "surfsight", by: "austin@gpsfms.com", at: iso(now, 3) },
+  ];
 
   // (camera days offline, go days offline, partner index, note) — null = device missing
   const spec: Array<[number | null, number | null, number, string]> = [
@@ -147,5 +158,5 @@ export function makeDemo(now: Date): DemoData {
     { kind: "snooze", key: cameraKey("352099001761499"), label: "No GO on pairing", reason: "other", note: "Camera in the parts bin", by, at: iso(now, 1), until: snoozeUntil(7, now) }
   );
 
-  return { vehicles, mappings, snoozes };
+  return { vehicles, mappings, snoozes, userDefaults, users };
 }

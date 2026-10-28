@@ -41,6 +41,24 @@ narrow the set; **Export CSV** writes the rows currently shown.
   board** with who snoozed what, when and why. If the user cannot write
   AddInData the page still works read-only with browser-local settings.
 
+## Per-user default view (admin-assigned)
+
+**Settings → User defaults**: pick a user, the group(s) the dashboard should
+open to for them, and optionally a camera chip and starting tile. Saved as an
+AddInData record (`kind: "userDefault"`, one per user; saving again replaces).
+Nothing is required of the user — next time they open the page it lands on
+their site, with a "Your default view: …" chip they can dismiss (×) to see the
+whole company. Resolution order on first load:
+
+1. admin-assigned default for the signed-in user (case-insensitive match on the MyGeotab user name);
+2. otherwise MyGeotab's own header group filter (`state.getGroupFilter`);
+3. otherwise the whole company.
+
+A default that points only at a group that no longer exists falls through to
+step 2 rather than filtering to nothing. Refresh keeps whatever the user has
+picked since; the default is applied once per page open. In the standalone
+preview, `?demoUser=travis.tucker@example.com` opens as that demo user.
+
 ## Data sources
 
 | Side | Call | Fields used |
@@ -48,7 +66,8 @@ narrow the set; **Export CSV** writes the rows currently shown.
 | Vehicles | `Get Device` (all, incl. archived) | name, serial, groups, activeTo |
 | GO health | `Get DeviceStatusInfo` | `dateTime` (last communication) |
 | Groups | `Get Group` | names, hierarchy for the picker |
-| Store | `Get AddInData` by `addInId` | snoozes + settings |
+| Store | `Get AddInData` by `addInId` | snoozes + settings + user defaults |
+| Users | `Get User` (only when Settings opens) | picker for User defaults |
 | Cameras | `GET https://media-services.geotab.com/DeviceMappings` | `associatedDeviceSerialNumber`, `partnerId`, `deviceStatus`, `partnerDeviceLastOnlineAt`, `partnerDeviceHealthStatus`, `partnerDeviceHealthErrors` |
 
 The four MyGeotab calls go out as one `multiCall`; camera-services is one
@@ -73,8 +92,9 @@ camera-health-addin/
 │   ├── api/geotab.ts            # api.call wrappers, DeviceStatusInfo join, AddInData store
 │   ├── api/cameraServices.ts    # GET /DeviceMappings with X-MyGeotab-* headers
 │   ├── utils/health.ts          # PURE rules: diagnosis, snooze/hard-limit, filters, sort
+│   ├── utils/defaults.ts        # PURE: per-user default view resolution
 │   ├── utils/csv.ts · demo.ts · format.ts
-│   └── components/              # Summary tiles, HealthTable, SnoozeDialog, SettingsPanel, GroupFilterPicker, ErrorBoundary
+│   └── components/              # Summary tiles, HealthTable, SnoozeDialog, SettingsPanel, UserDefaults, GroupFilterPicker, ErrorBoundary
 ├── test/run.mjs                 # offline rules tests (esbuild bundle, node assert)
 ├── config.json                  # add-in manifest (Activity menu)
 └── vite.config.ts               # absolute GitHub Pages base

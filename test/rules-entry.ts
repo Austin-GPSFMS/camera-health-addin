@@ -4,4 +4,5 @@ export * from "../src/utils/csv";
 export * from "../src/utils/demo";
 export * from "../src/utils/format";
 export { normalizeMapping } from "../src/api/cameraServices";
-export { isCameraCapableGo, isTrackableDevice, toVehicleInfo } from "../src/api/geotab";
+export { isCameraCapableGo, isTrackableDevice, toVehicleInfo, parseStoreRows } from "../src/api/geotab";
+export * from "../src/utils/defaults";
